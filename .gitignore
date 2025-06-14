@@ -1,32 +1,69 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# .gitignore for the death-star-command-core Go service
+
+# =============================================================================
+# General
+# =============================================================================
+
+# Local environment variables
+# These files contain secrets and machine-specific configurations
+# and must never be committed to the repository.
+.env
+.env.*
+!.env.example
+
+# =============================================================================
+# OS-specific files
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# =============================================================================
+# Go-specific files
+# =============================================================================
+
+# Compiled executable binaries
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 
-# Test binary, built with `go test -c`
+# Test binaries
 *.test
 
-# Code coverage profiles and other test artifacts
+# Profile and coverage reports
 *.out
-coverage.*
+*.prof
 *.coverprofile
-profile.cov
+coverage.*
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
+# Go workspace files
 go.work
 go.work.sum
 
-# env file
-.env
+# Dependency directory (we use Go modules)
+# vendor/
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# =============================================================================
+# Build artifacts
+# =============================================================================
+
+# Output directory for the compiled binary from our Makefile.
+bin/
+dist/
+build/
+
+# =============================================================================
+# Editor/IDE configuration files
+# =============================================================================
+
+.idea/
+.vscode/
+*.swp
+*~
