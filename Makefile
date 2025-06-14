@@ -10,8 +10,8 @@
 
 # The name of the final binary artifact.
 BINARY_NAME=command-core
-# The path to the output directory.
-成果物ディレクトリー=./bin
+# The path to the output directory for build artifacts.
+OUTPUT_DIR=./bin
 # The main package to be built.
 CMD_PATH=./cmd/server
 
@@ -20,7 +20,7 @@ GO=go
 GO_BUILD=$(GO) build
 GO_RUN=$(GO) run
 GO_TEST=$(GO) test
-GO_MOD_TIDY=$(GO) mod tidyls
+GO_MOD_TIDY=$(GO) mod tidy
 
 # --- Configuration ---
 
@@ -41,8 +41,9 @@ all: clean build
 # IMPORTANT: The recipe lines below MUST be indented with a single TAB, not spaces.
 build:
 	@echo "Building the application..."
-	@$(GO_BUILD) -o $(成果物ディレクトリー)/$(BINARY_NAME) $(CMD_PATH)
-	@echo "Build complete: $(成果物ディレクトリー)/$(BINARY_NAME)"
+	@mkdir -p $(OUTPUT_DIR)
+	@$(GO_BUILD) -o $(OUTPUT_DIR)/$(BINARY_NAME) $(CMD_PATH)
+	@echo "Build complete: $(OUTPUT_DIR)/$(BINARY_NAME)"
 
 # run: Compiles and runs the application for local development.
 # It automatically reads the PORT from the environment.
@@ -67,7 +68,7 @@ tidy:
 # Useful for ensuring a fresh build.
 clean:
 	@echo "Cleaning up build artifacts..."
-	@rm -rf $(成果物ディレクトリー)
+	@rm -rf $(OUTPUT_DIR)
 	@echo "Cleanup complete."
 
 # help: Displays this help message.
