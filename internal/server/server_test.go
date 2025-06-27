@@ -22,6 +22,10 @@ import (
 // 2. Returns a JSON body of `{"status": "ok"}`.
 func TestHealthCheckHandler(t *testing.T) {
 	// --- Arrange ---
+	// Set the feature flag environment variable for the duration of this test.
+	// This ensures the /health route is registered by the server.
+	t.Setenv("FF_HEALTH_ENDPOINT", "true")
+
 	// Set up the test environment. We create a new server instance, which includes
 	// our router and all registered handlers. This allows us to test the handler's
 	// logic in isolation without a live network connection.
