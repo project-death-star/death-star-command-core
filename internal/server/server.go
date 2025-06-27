@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/death-star/command-core/internal/featureflags"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
@@ -36,7 +37,9 @@ func NewServer() *gin.Engine {
 func registerRoutes(router *gin.Engine) {
 	// Grouping routes under /v1 for versioning is a best practice.
 	// For the walking skeleton, we can register directly.
-	router.GET("/health", healthCheckHandler)
+	if featureflags.IsEnabled("FF_HEALTH_ENDPOINT") {
+		router.GET("/health", healthCheckHandler)
+	}
 }
 
 // healthCheckHandler returns the operational status of the service.
