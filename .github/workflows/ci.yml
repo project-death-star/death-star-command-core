@@ -2,7 +2,7 @@ name: Go CI and Docker
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, vibe-coding ]
   pull_request:
     branches: [ main ]
 
@@ -24,10 +24,25 @@ jobs:
     - name: Test
       run: go test -v ./...
 
-  build-and-push-docker-image:
+  lint:
     needs: build-and-test
     runs-on: ubuntu-latest
-    # Only run this job on pushes to the main branch
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.55
+          args: -v
+
+  build-and-push-docker-image:
+    needs: [build-and-test, lint]
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
