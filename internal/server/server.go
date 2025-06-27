@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,6 +17,13 @@ import (
 func NewServer() *gin.Engine {
 	// Initialize a Gin router with default middleware.
 	router := gin.Default()
+
+	// Add CORS middleware. For the walking skeleton, we allow all origins.
+	// In a production environment, this should be restricted to the specific
+	// frontend domain.
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true
+	router.Use(cors.New(config))
 
 	// Register all the defined API routes.
 	registerRoutes(router)
