@@ -40,8 +40,19 @@ jobs:
           version: v1.55
           args: -v
 
+  sast-scan:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run Semgrep SAST scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: "p/default"
+
   build-and-push-docker-image:
-    needs: [build-and-test, lint]
+    needs: [build-and-test, lint, sast-scan]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
