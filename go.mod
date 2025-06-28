@@ -6,7 +6,7 @@ module github.com/death-star/command-core
 // The go directive specifies the minimum version of Go required to build this module.
 // This ensures that we use a consistent language version with expected features
 // and standard library behavior across all development and CI/CD environments.
-go 1.24.4
+go 1.22
 
 // The require directive lists the direct dependencies that are explicitly
 // imported by the source code of this module. These are the essential libraries
