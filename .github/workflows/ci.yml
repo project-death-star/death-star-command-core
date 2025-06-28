@@ -10,65 +10,88 @@ env:
   GO_VERSION: '1.24'
   REGISTRY: ghcr.io
 
+# =================================================================
+#                      VALIDATION AND QUALITY JOBS
+# =================================================================
 jobs:
-  build-and-test:
+  lint:
+    name: Lint Code
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Run go fmt
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Go code is not formatted. Run 'go fmt ./...'"
+            exit 1
+          fi
+      - name: Run go vet
+        run: go vet ./...
+      - name: Install and run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.2
+          args: --timeout=5m
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        cache: true
-        cache-dependency-path: go.sum
+  test:
+    name: Run Unit Tests
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Test with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -html=coverage.out -o coverage.html
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload test coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.html
 
-    - name: Verify dependencies
-      run: |
-        go mod download
-        go mod verify
+  build:
+    name: Build Application
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Build
+        run: go build -v ./...
 
-    - name: Run go fmt
-      run: |
-        if [ -n "$(gofmt -l .)" ]; then
-          echo "Go code is not formatted. Run 'go fmt ./...'"
-          exit 1
-        fi
-
-    - name: Run go vet
-      run: go vet ./...
-
-    - name: Install golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: v1.64.2
-        args: --timeout=5m
-
-    - name: Build
-      run: go build -v ./...
-
-    - name: Test with coverage
-      run: |
-        go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-        go tool cover -html=coverage.out -o coverage.html
-
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Upload test coverage
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: coverage.html
-
+# =================================================================
+#                      SECURITY SCAN JOBS
+# =================================================================
   sast-scan:
-    needs: build-and-test
+    name: "SAST Scan"
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -79,7 +102,8 @@ jobs:
           config: "p/default"
 
   sca-scan:
-    needs: build-and-test
+    name: "SCA Scan"
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -94,8 +118,12 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
 
-  build-and-push-docker-image:
-    needs: [build-and-test, sast-scan, sca-scan]
+# =================================================================
+#                      PUBLISH JOB
+# =================================================================
+  build-sign-and-publish-image:
+    name: Build, Sign, and Publish Image
+    needs: [sast-scan, sca-scan]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
@@ -186,14 +214,6 @@ jobs:
             --certificate-identity-regexp=https://github.com/${{ github.repository }}/.github/workflows/ \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 
-      - name: Debug attestation context
-        run: |
-          echo "Repository: ${{ github.repository }}"
-          echo "Repository owner: ${{ github.repository_owner }}"
-          echo "Is fork: ${{ github.event.repository.fork }}"
-          echo "Actor: ${{ github.actor }}"
-          echo "Token available: ${{ secrets.GITHUB_TOKEN != '' }}"
-
       - name: Create attestation
         uses: actions/attest-build-provenance@v1
         continue-on-error: true
@@ -202,3 +222,4 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
           subject-digest: ${{ steps.docker_build.outputs.digest }}
           push-to-registry: true
+
