@@ -14,8 +14,24 @@ env:
 #                      VALIDATION AND QUALITY JOBS
 # =================================================================
 jobs:
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Build
+        run: go build -v ./...
+
   lint:
     name: Lint Code
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -42,7 +58,7 @@ jobs:
 
   test:
     name: Run Unit Tests
-    needs: lint
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -69,22 +85,6 @@ jobs:
         with:
           name: coverage-report
           path: coverage.html
-
-  build:
-    name: Build Application
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-          cache-dependency-path: go.sum
-      - name: Build
-        run: go build -v ./...
 
 # =================================================================
 #                      SECURITY SCAN JOBS
@@ -123,7 +123,7 @@ jobs:
 # =================================================================
   build-sign-and-publish-image:
     name: Build, Sign, and Publish Image
-    needs: [sast-scan, sca-scan]
+    needs: [lint, test, sast-scan, sca-scan]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
@@ -222,4 +222,5 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
           subject-digest: ${{ steps.docker_build.outputs.digest }}
           push-to-registry: true
+
 
