@@ -3,9 +3,10 @@ package server
 import (
 	"net/http"
 
-	"github.com/death-star/command-core/internal/featureflags"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+
+	"github.com/death-star/command-core/internal/featureflags"
 )
 
 // NewServer creates and configures a new Gin server instance for the BFF.
