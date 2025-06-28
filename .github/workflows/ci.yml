@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  GO_VERSION: '1.24'
+  REGISTRY: ghcr.io
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -16,13 +20,52 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+        cache-dependency-path: go.sum
+
+    - name: Verify dependencies
+      run: |
+        go mod download
+        go mod verify
+
+    - name: Run go fmt
+      run: |
+        if [ -n "$(gofmt -l .)" ]; then
+          echo "Go code is not formatted. Run 'go fmt ./...'"
+          exit 1
+        fi
+
+    - name: Run go vet
+      run: go vet ./...
+
+    - name: Install golangci-lint
+      uses: golangci/golangci-lint-action@v4
+      with:
+        version: v1.55.2
+        args: --timeout=5m
 
     - name: Build
       run: go build -v ./...
 
-    - name: Test
-      run: go test -v ./...
+    - name: Test with coverage
+      run: |
+        go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        go tool cover -html=coverage.out -o coverage.html
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload test coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.html
 
   sast-scan:
     needs: build-and-test
@@ -30,10 +73,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Run Semgrep SAST scan
         uses: semgrep/semgrep-action@v1
         with:
-          config: "p/default"
+          config: |
+            - auto
+            - p/security-audit
+            - p/golang
+          generateSarif: true
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
 
   sca-scan:
     needs: build-and-test
@@ -41,7 +95,24 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Run Trivy vulnerability scanner in fs mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Trivy in table format for PR comment
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
@@ -54,21 +125,37 @@ jobs:
   build-and-push-docker-image:
     needs: [build-and-test, sast-scan, sca-scan]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       packages: write
       id-token: write
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
 
       - name: Build and push Docker image
         id: docker_build
@@ -76,38 +163,58 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            GO_VERSION=${{ env.GO_VERSION }}
+          provenance: true
+          sbom: true
 
       - name: Run Trivy vulnerability scanner on image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'ghcr.io/${{ github.repository }}:${{ github.sha }}'
-          format: 'table'
-          ignore-unfixed: true
+          image-ref: '${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.docker_build.outputs.digest }}'
+          format: 'sarif'
+          output: 'trivy-image.sarif'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-image.sarif'
 
       - name: Generate SBOM
-        uses: anchore/syft-action@v1
+        uses: anchore/sbom-action@v0
         with:
-          image: 'ghcr.io/${{ github.repository }}:${{ github.sha }}'
+          image: '${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.docker_build.outputs.digest }}'
           format: 'spdx-json'
           output-file: 'sbom.spdx.json'
-
-      - name: Upload SBOM
-        uses: actions/upload-artifact@v3
-        with:
-          name: sbom
-          path: sbom.spdx.json
+          upload-artifact: true
+          upload-artifact-name: 'sbom-${{ github.sha }}'
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign the container image
-        run: cosign sign --yes ghcr.io/${{ github.repository }}@${{ steps.docker_build.outputs.digest }}
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.docker_build.outputs.digest }}
 
-      - name: Generate SLSA provenance
-        uses: slsa-framework/slsa-github-generator@v1
+      - name: Verify the container image signature
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign verify ${{ env.REGISTRY }}/${{ github.repository }}@${{ steps.docker_build.outputs.digest }} \
+            --certificate-identity-regexp=https://github.com/${{ github.repository }}/.github/workflows/ \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+
+      - name: Create attestation
+        uses: actions/attest-build-provenance@v1
         with:
-          image-digest: ${{ steps.docker_build.outputs.digest }}
-
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
+          subject-digest: ${{ steps.docker_build.outputs.digest }}
+          push-to-registry: true
