@@ -38,7 +38,6 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v2.1.6
-          args: -v
 
 #  sast-scan:
 #    needs: build-and-test
