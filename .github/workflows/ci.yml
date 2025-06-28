@@ -104,6 +104,7 @@ jobs:
       id-token: write
       security-events: write
       attestations: write
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -185,8 +186,18 @@ jobs:
             --certificate-identity-regexp=https://github.com/${{ github.repository }}/.github/workflows/ \
             --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 
+      - name: Debug attestation context
+        run: |
+          echo "Repository: ${{ github.repository }}"
+          echo "Repository owner: ${{ github.repository_owner }}"
+          echo "Is fork: ${{ github.event.repository.fork }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Token available: ${{ secrets.GITHUB_TOKEN != '' }}"
+
       - name: Create attestation
         uses: actions/attest-build-provenance@v1
+        continue-on-error: true
+        if: github.repository_owner != '' && !github.event.repository.fork
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
           subject-digest: ${{ steps.docker_build.outputs.digest }}
