@@ -88,7 +88,7 @@ jobs:
           exit-code: '1'
 
       - name: Generate SBOM
-        uses: anchore/syft-action@v0
+        uses: anchore/syft-action@v1
         with:
           image: 'ghcr.io/${{ github.repository }}:${{ github.sha }}'
           format: 'spdx-json'
