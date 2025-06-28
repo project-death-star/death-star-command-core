@@ -38,6 +38,8 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v2.1.6
+      - name: Run linter manually
+        run: /root/golangci-lint-2.1.6-linux-amd64/golangci-lint run --out-format=github-actions
 
 #  sast-scan:
 #    needs: build-and-test
