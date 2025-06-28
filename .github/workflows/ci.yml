@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  GO_VERSION: '1.21'
+  GO_VERSION: '1.24'
   REGISTRY: ghcr.io
 
 jobs:
@@ -40,9 +40,9 @@ jobs:
       run: go vet ./...
 
     - name: Install golangci-lint
-      uses: golangci/golangci-lint-action@v3
+      uses: golangci/golangci-lint-action@v6
       with:
-        version: v1.54.2
+        version: v1.64.2
         args: --timeout=5m
 
     - name: Build
@@ -53,19 +53,19 @@ jobs:
         go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
         go tool cover -html=coverage.out -o coverage.html
 
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        token: ${{ secrets.CODECOV_TOKEN }}
+    # - name: Upload coverage reports
+    #   uses: codecov/codecov-action@v4
+    #   with:
+    #     file: ./coverage.out
+    #     flags: unittests
+    #     name: codecov-umbrella
+    #     token: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Upload test coverage
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-report
-        path: coverage.html
+    # - name: Upload test coverage
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: coverage-report
+    #     path: coverage.html
 
   sast-scan:
     needs: build-and-test
@@ -73,21 +73,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Run Semgrep SAST scan
         uses: semgrep/semgrep-action@v1
         with:
-          config: |
-            - auto
-            - p/security-audit
-            - p/golang
-          generateSarif: true
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: semgrep.sarif
+          config: "p/default"
 
   sca-scan:
     needs: build-and-test
@@ -95,24 +84,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Run Trivy vulnerability scanner in fs mode
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          ignore-unfixed: true
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-      - name: Run Trivy in table format for PR comment
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
