@@ -53,19 +53,19 @@ jobs:
         go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
         go tool cover -html=coverage.out -o coverage.html
 
-    # - name: Upload coverage reports
-    #   uses: codecov/codecov-action@v4
-    #   with:
-    #     file: ./coverage.out
-    #     flags: unittests
-    #     name: codecov-umbrella
-    #     token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.out
+        flags: unittests
+        name: codecov-umbrella
+        token: ${{ secrets.CODECOV_TOKEN }}
 
-    # - name: Upload test coverage
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: coverage-report
-    #     path: coverage.html
+    - name: Upload test coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.html
 
   sast-scan:
     needs: build-and-test
