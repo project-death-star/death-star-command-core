@@ -39,6 +39,8 @@ jobs:
         with:
           version: v1.55
           args: -v
+        env:
+          GOTOOLCHAIN: go1.21.13
 
   sast-scan:
     needs: build-and-test
