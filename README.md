@@ -73,3 +73,4 @@ As this is a solo portfolio project, direct contributions are not expected. Howe
 
 This project is distributed under the MIT License. See `LICENSE` for more information.
 # Test GitOps
+# Test GitOps trigger
