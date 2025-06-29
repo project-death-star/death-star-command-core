@@ -112,7 +112,7 @@ jobs:
         run: |
           cd infrastructure
           
-          # Update the image tag in cloudrun.tf
+          # Update the image tag in cloudrun.tf (search for the full path pattern)
           sed -i 's|death-star-command-core:latest|death-star-command-core:${{ github.sha }}|g' cloudrun.tf
           
           # Verify the change
